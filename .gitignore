@@ -14,5 +14,6 @@ glutest.py
 
 # ignore cache stuff
 __pycache__/*
+*/__pycache__/*
 .ipynb_checkpoints/
 
