@@ -5,7 +5,7 @@ The `runner.py` file will handle all putting together the different pieces to ru
 
 The code for this project uses mainly uses:
 - [Stable Baselines 3](https://github.com/DLR-RM/stable-baselines3)
-- [An implementation of NAF](https://github.com/BY571/Normalized-Advantage-Function-NAF-) by Dittert, Sebastian. Code is in the naf/ directory.
+- [An implementation of NAF](https://github.com/BY571/Normalized-Advantage-Function-NAF-) by Dittert, Sebastian. Code is in the [naf/](naf/) directory.
 - [Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
 
 Modifications:
