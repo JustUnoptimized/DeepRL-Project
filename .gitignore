@@ -1,0 +1,18 @@
+# ignore models
+*.zip
+*.pth
+
+# ignore log files from slurm
+*.err
+*.out
+
+# ignore jupyter notebooks
+*.ipynb
+
+# other files
+glutest.py
+
+# ignore cache stuff
+__pycache__/*
+.ipynb_checkpoints/
+
