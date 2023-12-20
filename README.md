@@ -1,7 +1,7 @@
 ## Repo for Deep Reinforcement Learning Project
 This repo contains the code for my Deep Reinforcement Project: An Exploration of Q-Learning using Normalized Advantage Functions and Model-Based Accelerations in Various Different Domains
 
-The `runner.py` file will handle all putting together the different pieces to run the various algorithms. **This requires 3 flags in a certain order: env, alg, custom_reward**. The `test.sh` contains examples of how to run the code from the command line.
+The `runner.py` file will handle all putting together the different pieces to run the various algorithms. **This requires the exp_name flag first!** All results will be saved in `evals/exp_name`. The `test.sh` contains examples of how to run the code from the command line.
 
 The code for this project uses mainly uses:
 - [Stable Baselines 3](https://github.com/DLR-RM/stable-baselines3)
