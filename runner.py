@@ -150,7 +150,7 @@ def final_eval_plot(outdir, env, obslist, actlist, rewlist, ncols=3):
     horizon = get_horizon(env)
     nrollouts = len(obslist)
     nrows, rem = divmod(nrollouts, ncols)
-    if rem > 0:
+    if rem > 0:  # add new row if rem > 0
         nrows += 1
         
     # convert obslist, actlist, rewlist to np.arrays for easier computation
@@ -225,7 +225,7 @@ def final_eval_plot(outdir, env, obslist, actlist, rewlist, ncols=3):
         ax3ylabel = 'Reward'
     
     
-    print('Plotting observations, rewards, and actions over rollout...')
+    print(f'Plotting observations, rewards, and actions over {nrollouts} rollout(s)...')
     
     # plot individual evaluations
     for k in range(nrollouts):
@@ -270,7 +270,7 @@ def final_eval_plot(outdir, env, obslist, actlist, rewlist, ncols=3):
         
         i, j = (0, 0) if k == 0 else divmod(k, ncols)
         
-        ax1 = axs[i, j]
+        ax1 = axs[i, j] if nrows > 1 else axs[j]
         ax1.plot(olist, color='blue', label=ax1label)
         ax1.set_ylim(ax1ylim)
         ax1.set_xlabel(ax1xlabel)
@@ -326,6 +326,7 @@ if __name__ == '__main__':
         'kovatchev'
     ]
     parser.add_argument('--custom_reward', '-r', required=True, type=str, choices=cust_rew_choices)
+    parser.add_argument('--exp_name', required=True, type=str)
     
     # if flag set, only load models and do final evals. Check relevant args in final eval args section
     parser.add_argument('--only_final_eval', action='store_true')
@@ -430,7 +431,8 @@ if __name__ == '__main__':
     if args.alg == 'naf-mba':
         args.mba = True
         
-    exp_name = f'{args.alg}_{args.env}_{args.custom_reward}'
+    # exp_name = f'{args.alg}_{args.env}_{args.custom_reward}'
+    exp_name = args.exp_name
     outdir = osp.join('evals/', exp_name)
     if not osp.exists(outdir):
         os.mkdir(outdir)
