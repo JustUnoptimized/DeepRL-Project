@@ -13,7 +13,7 @@ Modifications:
 - I modified my pip installation of Stable Baselines 3 such that the TD3 MLP policy includes BatchNorms after each hidden layer. The modifications are listed below, and are **not** reflected in this repo.
 - I modified the NAF implementation to add iLQG and imagination rollouts for model-based accelerations. The modifications are reflected in the repo.
 
-For SB3 Modification Steps:
+#### SB3 Modification Instructions
 1. Add the following code snippet to `stable_baselines3/common/torch_layers.py`:
 
 ```
@@ -49,4 +49,22 @@ def create_mlp_bn(
 
 2. Import the above function in `stable_baselines3/common/policies.py` and `stable_baselines3/td3/policies.py`
 
-3. Inside the `ContinuousCritic` class of `stable_baselines3/common/policies.py`, use `create_mlp_bn` instead of `create_mlp`. Do the same for the `Actor` class of `stable_baselines3/td3/policies.py`.
+3. Inside `stable_baselines3/td3/policies.py`, add `nobn: bool = False,` as an argument to `TD3Policy.__init__()`. Likewise, add `"nobn": nobn,` to the `self.net_args` dictionary a few lines down.
+
+4. Inside `stable_baselines3/td3/policies.py`, add `nobn: bool = False,` as an argument to `Actor.__init__()`. Then, replace `actor_net = create_mlp(features_dim, action_dim, net_arch, activation_fn, squash_output=True)` with the following if-else block:
+
+```
+if nobn:
+    actor_net = create_mlp(features_dim, action_dim, net_arch, activation_fn, squash_output=True)
+else:
+    actor_net = create_mlp_bn(features_dim, action_dim, net_arch, activation_fn, squash_output=True)
+```
+
+5. Inside `stable_baselines3/common/policies.py`, add `nobn: bool = False,` as an argument to `ContinuousCritic.__init__()`. Then, inside the `for idx in range(n_critics)` loop, replace `q_net_list = create_mlp(features_dim + action_dim, 1, net_arch, activation_fn)` with the following if-else block:
+
+```
+if nobn:
+    q_net_list = create_mlp(features_dim + action_dim, 1, net_arch, activation_fn)
+else:
+    q_net_list = create_mlp_bn(features_dim + action_dim, 1, net_arch, activation_fn)
+```
