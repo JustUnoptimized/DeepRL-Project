@@ -14,7 +14,7 @@ from gymnasium.wrappers import StepAPICompatibility
 
 # NAF imports
 from naf.agent import NAF_Agent
-from naf.naf import naf_runner, naf_final_eval
+from naf.naf import naf_runner
 
 # DDPG and TD3 imports
 from stable_baselines3 import DDPG

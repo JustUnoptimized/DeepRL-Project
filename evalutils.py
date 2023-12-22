@@ -51,9 +51,9 @@ def _do_rollouts_naf(agent, env, eval_runs, start_seed, maxiter=1000):
             # while not done:
             for t in range(maxiter):
                 action = agent.act_without_noise(state)
-                next_state, reward, done, _ = env.step(action)
+                state, reward, done, _ = env.step(action)
 
-                obslist_i.append(next_state)
+                obslist_i.append(state)
                 actlist_i.append(action)
                 rewlist_i.append(reward)
                 if done:
