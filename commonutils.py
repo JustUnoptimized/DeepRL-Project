@@ -1,3 +1,9 @@
+from datetime import datetime
+import gymnasium as gym
+from simglucose.simulation.scenario_gen import RandomScenario
+from bgrisks import simple_reward
+from bgrisks import my_reward_closure
+
 
 def print_timedelta(t_start, t_end, objective):
     h, rem = divmod(t_end - t_start, 3600)
@@ -15,6 +21,36 @@ def get_horizon(envname):
         horizon = 999  # simglucose does not have specified time horizon, so arbitrarily choose 999
     
     return horizon
+
+
+def register_simglucose(custom_rew='default'):
+    now = datetime.now()
+    start_time = datetime.combine(now.date(), datetime.min.time())
+    meal_scenario = RandomScenario(start_time=start_time, seed=1)
+    
+    sg_kwargs = {
+        'patient_name': 'adolescent#002',
+        'custom_scenario': meal_scenario
+    }
+    
+    rew_fns = {
+        'simple': simple_reward,
+        'magni': my_reward_closure('magni'),
+        'kovatchev': my_reward_closure('kovatchev')
+    }
+    
+    if not custom_rew == 'default':
+        print(f'Using custom reward {custom_rew} for Simglucose...')
+        rew_fn = rew_fns[custom_rew]
+        sg_kwargs.update({'reward_fun': rew_fn})
+    else:
+        print(f'Using default reward = risk[t-1] - risk[t] for Simglucose...')
+
+    gym.register(
+        id='simglucose-adolescent2-v0',
+        entry_point='simglucose.envs:T1DSimGymnaisumEnv',
+        kwargs=sg_kwargs
+    )
 
 
 # import numpy as np

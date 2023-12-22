@@ -28,106 +28,11 @@ warnings.filterwarnings("ignore")
 ############################################
 
 
-########### OBSOLETE--JUST USE RUNNER.PY ###########
-def register_simglucose():
-    now = datetime.now()
-    start_time = datetime.combine(now.date(), datetime.min.time())
-    meal_scenario = RandomScenario(start_time=start_time, seed=1)
-
-    gym.register(
-        id='simglucose-adolescent2-v0',
-        entry_point='simglucose.envs:T1DSimGymnaisumEnv',
-        kwargs={'patient_name': 'adolescent#002',
-                'custom_scenario': meal_scenario}
-    )
-
-
-########### OBSOLETE--JUST USE RUNNER.PY ###########
-def make_plots(env, alg, obslist, actlist, rewlist):
-    if env == 'simglucose-adolescent2-v0':
-        # plot obs, obs safe zone, rew, action on single plot
-        print('Plotting observations and actions over rollout...')
-        fig, ax1 = plt.subplots(figsize=(8, 6))
-        ax1.plot(obslist, color='blue', label='Glucose')
-        ax1.set_ylim((0, 600))
-        ax1.set_xlabel('Steps (hours)')
-        ax1.set_ylabel('Glucose', color='blue')
-        ax1.fill_between(np.arange(len(obslist)), 70, 180, alpha=0.2)
-
-        # action axis
-        ax2 = ax1.twinx()
-        ax2.plot(actlist, color='orange', alpha=0.4, label='Basal')
-        ax2.set_ylim((-5, 35))
-        ax2.set_ylabel('Basal', color='orange')
-        
-        # reward axis
-        ax3 = ax1.twinx()
-        ax3.plot(rewlist, color='red', label='Reward')
-        ax3.set_ylabel('Reward', color='red')
-        
-        # reposition action axis
-        ax2.spines['right'].set_position(('outward', 60))
-        
-        fig.tight_layout()
-        plotname = f'plots/{alg}_{env}.png'
-        plt.savefig(plotname)
-        plt.close()
-        
-    elif env == 'MountainCarContinuous-v0':
-        print('Plotting Actions and Rewards')
-        fig, ax1 = plt.subplots(figsize=(8, 6))
-        # start rewlist from 1 because do_rollout appends nan at position 0
-        ax1.plot(rewlist[1:], color='red', label='Reward')
-        ax1.set_xlabel('Steps')
-        ax1.set_ylabel('Reward', color='red')
-
-        # action axis
-        ax2 = ax1.twinx()
-        # start actlist from 1 because do_rollout appends nan at position 0
-        ax2.plot(actlist[1:], color='orange', alpha=0.4, label='Action')
-        ax2.set_ylim((-1.25, 1.25))
-        ax2.set_ylabel('Force', color='orange')
-
-        fig.tight_layout()
-        plotname = f'plots/{alg}_{env}.png'
-        plt.savefig(plotname)
-        plt.close()
-    elif env == 'Pendulum-v1':
-        print('Plotting Actions and Rewards')
-        fig, ax1 = plt.subplots(figsize=(8, 6))
-        # start rewlist from 1 because do_rollout appends nan at position 0
-        ax1.plot(rewlist[1:], color='red', label='Reward')
-        ax1.set_xlabel('Steps')
-        ax1.set_ylabel('Reward', color='red')
-
-        # action axis
-        ax2 = ax1.twinx()
-        # start actlist from 1 because do_rollout appends nan at position 0
-        ax2.plot(actlist[1:], color='orange', alpha=0.4, label='Action')
-        ax2.set_ylim((-2.25, 2.25))
-        ax2.set_ylabel('Torque', color='orange')
-
-        fig.tight_layout()
-        plotname = f'plots/{alg}_{env}.png'
-        plt.savefig(plotname)
-        plt.close()
-
-
-# very jank with a conditional return statement. Future me beware!
-def evaluate(frame, agent, env, eval_runs, eval_scores, eval_ep_lens, writer, return_lists=False):
+def evaluate(frame, agent, env, eval_runs, eval_scores, eval_ep_lens, writer):
     ### has side effect of appending stuff to eval_scores and eval_ep_lens!!
-    
-    # holds total rollout reward over eval_runs trials
-    # shape = len(timesteps) x eval_runs
     
     trial_scores = []
     trial_ep_lens = []
-    
-    # return a list of lists
-    if return_lists:
-        obslist = []
-        actlist = []
-        rewlist = []
 
     with torch.no_grad():
         for i in range(eval_runs):
@@ -135,38 +40,20 @@ def evaluate(frame, agent, env, eval_runs, eval_scores, eval_ep_lens, writer, re
             score = 0  # total reward over rollout
             done = 0
             ep_len = 0
-            if return_lists:
-                obslist_i = [state]
-                # this funky thing is just so all the elements of actlist have the same shape
-                # which is equal to env.action_space.shape -- I am assuming this is a 1D box
-                actlist_i = [np.array([np.nan for _ in range(env.action_space.shape[0])])]
-                rewlist_i = [np.nan]
             while not done:
                 action = agent.act_without_noise(state)
-                state, reward, done, _ = env.step(action)
+                next_state, reward, done, _ = env.step(action)
                 score += reward
                 ep_len += 1
-                if return_lists:
-                    obslist_i.append(state)
-                    actlist_i.append(action)
-                    rewlist_i.append(reward)
                 if done:
                     trial_scores.append(score)
                     trial_ep_lens.append(ep_len)
-                    if return_lists:
-                        print(f'Rollout {i+1:02d} was {len(obslist_i)-1} actions long...')
                     break
-            if return_lists:
-                obslist.append(obslist_i)
-                actlist.append(actlist_i)
-                rewlist.append(rewlist_i)
 
     #wandb.log({"Reward": np.mean(scores), "Step": frame})
     writer.add_scalar("Reward", np.mean(trial_scores), frame)
     eval_scores.append(trial_scores)
     eval_ep_lens.append(trial_ep_lens)
-    if return_lists:
-        return obslist, actlist, rewlist
 
 
 ########### OBSOLETE--JUST USE RUNNER.PY ###########
@@ -246,9 +133,8 @@ def naf_runner(args, agent, env, eval_env, outdir, writer):
     eval_ep_lens = []
     
 
-    # use dummy lists for eval_scores and eval_ep_lens because
-    # we want to start averaging after training starts
-    evaluate(0, agent, eval_env, eval_runs, [], [], writer, return_lists=False)
+    evaluate(0, agent, eval_env, eval_runs, eval_scores, eval_ep_lens, writer)
+    timesteps.append(0)
     for frame in range(1, frames+1):
         action = agent.act(state, t)
 
@@ -261,7 +147,7 @@ def naf_runner(args, agent, env, eval_env, outdir, writer):
 
         if frame % eval_every == 0:
             # has side effect of appending stuff to eval_scores and eval_ep_lens
-            evaluate(frame, agent, eval_env, eval_runs, eval_scores, eval_ep_lens, writer, return_lists=False)
+            evaluate(frame, agent, eval_env, eval_runs, eval_scores, eval_ep_lens, writer)
             timesteps.append(frame)
 
         if done:
@@ -295,14 +181,6 @@ def naf_runner(args, agent, env, eval_env, outdir, writer):
     outfile = osp.join(outdir, 'evaluations.npz')
     # arrays saved are kept consistent with those used in stable baselines 3
     np.savez(outfile, timesteps=timesteps, results=eval_scores, ep_lengths=eval_ep_lens)
-
-
-def naf_final_eval(args, agent, final_env, writer): 
-    frames = args.frames
-    eval_runs = args.n_final_eval
-    
-    obslist, actlist, rewlist = evaluate(frames, agent, final_env, eval_runs, [], [], writer, return_lists=True)
-    return obslist, actlist, rewlist
 
 
 ########### OBSOLETE--JUST USE RUNNER.PY ###########

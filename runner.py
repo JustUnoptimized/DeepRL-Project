@@ -6,17 +6,11 @@ import json
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from datetime import datetime
 from time import time
 
 # gymnasium imports
 import gymnasium as gym
 from gymnasium.wrappers import StepAPICompatibility
-
-# simglucose imports
-from simglucose.simulation.scenario_gen import RandomScenario
-from bgrisks import simple_reward
-from bgrisks import my_reward_closure
 
 # NAF imports
 from naf.agent import NAF_Agent
@@ -31,7 +25,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 # Common util imports
-from commonutils import print_timedelta, get_horizon
+from commonutils import print_timedelta, get_horizon, register_simglucose
 
 # Evaluation imports
 from evalutils import training_eval_plots, do_rollouts, final_eval_plot
@@ -40,36 +34,6 @@ from evalutils import training_eval_plots, do_rollouts, final_eval_plot
 import warnings
 warnings.filterwarnings("ignore")
 ############################################
-
-
-def register_simglucose(custom_rew='default'):
-    now = datetime.now()
-    start_time = datetime.combine(now.date(), datetime.min.time())
-    meal_scenario = RandomScenario(start_time=start_time, seed=1)
-    
-    sg_kwargs = {
-        'patient_name': 'adolescent#002',
-        'custom_scenario': meal_scenario
-    }
-    
-    rew_fns = {
-        'simple': simple_reward,
-        'magni': my_reward_closure('magni'),
-        'kovatchev': my_reward_closure('kovatchev')
-    }
-    
-    if not custom_rew == 'default':
-        print(f'Using custom reward {custom_rew} for Simglucose...')
-        rew_fn = rew_fns[custom_rew]
-        sg_kwargs.update({'reward_fun': rew_fn})
-    else:
-        print(f'Using default reward = risk[t-1] - risk[t] for Simglucose...')
-
-    gym.register(
-        id='simglucose-adolescent2-v0',
-        entry_point='simglucose.envs:T1DSimGymnaisumEnv',
-        kwargs=sg_kwargs
-    )
 
 
 if __name__ == '__main__':
@@ -133,7 +97,7 @@ if __name__ == '__main__':
     parser.add_argument('--rxu_quad_scale', type=float, default=1.)
     parser.add_argument('--rxu_lin_scale', type=float, default=1.)
     
-    # don't touch these!
+    # don't touch these!!
     parser.add_argument('-f', "--frames", type=int, default=40000,
                      help='Number of training frames (default: 40000)')  # this is overwritten by total_timesteps!
     parser.add_argument("--learning_rate", type=float, default=1e-3,
@@ -181,7 +145,8 @@ if __name__ == '__main__':
     # set up relevant variables from cmd line arguments
     device = 'cpu' if args.nogpu else 'auto'
     
-    register_simglucose(custom_rew=args.custom_reward)
+    if args.env == 'simglucose-adolescent2-v0':
+        register_simglucose(custom_rew=args.custom_reward)
     
     env = gym.make(args.env)
     env.np_random = np.random.default_rng(seed=args.seed)
@@ -191,6 +156,7 @@ if __name__ == '__main__':
     
     final_env = gym.make(args.env)  # for final evalution after training
     final_env.np_random = np.random.default_rng(seed=args.seed+2)
+    final_eval_seed = args.seed + 2
 
     horizon = get_horizon(args.env)
     
@@ -272,10 +238,6 @@ if __name__ == '__main__':
             print_timedelta(t_start, t_end, 'Training')
             print('Saving model...')
             model.save(modelname)
-        
-        print(f'Doing {args.n_final_eval} rollouts...')
-        obslist, actlist, rewlist = do_rollouts(model, args.alg, final_env, args.n_final_eval)
-
 
     elif args.alg == 'td3':
         # eval env needs to be the same type + wrappers as env
@@ -336,9 +298,6 @@ if __name__ == '__main__':
             print('Saving model...')
             model.save(modelname)
 
-        print(f'Doing {args.n_final_eval} rollouts...')
-        obslist, actlist, rewlist = do_rollouts(model, args.alg, final_env, args.n_final_eval)
-
     elif args.alg == 'naf' or args.alg == 'naf-mba':
         from torch.utils.tensorboard import SummaryWriter
     
@@ -358,7 +317,7 @@ if __name__ == '__main__':
 
         writer = SummaryWriter(f'runs/{exp_name}')
 
-        agent = NAF_Agent(state_size=state_size,
+        model = NAF_Agent(state_size=state_size,
                           state_space=state_space,
                           action_size=action_size,
                           action_space=action_space,
@@ -367,33 +326,32 @@ if __name__ == '__main__':
                           args=args,
                           writer=writer)
         
-        print(f'model.device = {agent.device}')
-        print(agent.qnetwork_local)
+        print(f'model.device = {model.device}')
+        print(model.qnetwork_local)
         
         if args.only_final_eval:
             # only do final evaluation
             print('Only doing final evaluation...')
             print('Loading model...')
-            agent.load_model(modelname)
+            model.load_model(modelname)
             
         else:
             # do training
             print('Starting training...')
             t_start = time()
-            naf_runner(args, agent, env, eval_env, outdir, writer)
+            naf_runner(args, model, env, eval_env, outdir, writer)
             t_end = time()
             print_timedelta(t_start, t_end, 'Training')
             print('Saving model...')
-            torch.save(agent.qnetwork_local.state_dict(), modelname + '_.pth')
+            torch.save(model.qnetwork_local.state_dict(), modelname + '_.pth')
             # save parameter
             with open('runs/'+exp_name+".json", 'w') as f:
                 json.dump(args.__dict__, f, indent=2)
-                
-        print(f'Doing {args.n_final_eval} rollouts...')
-        obslist, actlist, rewlist = naf_final_eval(args, agent, final_env, writer)
     
     # make plots
     if not args.only_final_eval:
-        training_eval_plots(outdir, args.n_eval_episodes)
+        training_eval_plots(outdir, args.alg, args.env, args.n_eval_episodes)
 
-    final_eval_plot(outdir, args.env, obslist, actlist, rewlist)
+    print(f'Doing {args.n_final_eval} rollouts...')
+    obslists, actlists, rewlists = do_rollouts(args.alg, model, final_env, args.n_final_eval, final_eval_seed, maxiter=horizon)
+    final_eval_plot(outdir, args.alg, args.env, obslists, actlists, rewlists)
